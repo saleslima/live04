@@ -515,11 +515,17 @@ peer.on("open", async id => {
             await startCamera();
             const call = peer.call(room, localStream);
             currentCall = call;
-            // O sender não envia vídeo, então o destinatário só verá o próprio vídeo (localStream)
+            // O sender só envia áudio (ou áudio + vídeo opcional), o destinatário deve continuar vendo apenas a própria câmera
             call.on("stream", remoteStream => {
-                // Caso no futuro o sender envie algo, ainda garantimos que o vídeo do destinatário
-                // seja o único exibido em ambos os lados
-                addVideo(remoteStream, false, false);
+                // Se houver vídeo no stream remoto e você quiser exibir no futuro, trate aqui.
+                // Atualmente, usamos apenas o áudio para que a imagem local não seja substituída.
+                const hasAudio = remoteStream.getAudioTracks().length > 0;
+                if (hasAudio) {
+                    const audioElement = new Audio();
+                    audioElement.srcObject = remoteStream;
+                    audioElement.autoplay = true;
+                    audioElement.play().catch(() => {});
+                }
             });
             
             // Enviar localização para o sender
