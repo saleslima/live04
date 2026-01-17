@@ -394,6 +394,25 @@ async function startCamera() {
     }
 }
 
+/* Encerrar câmera local (usado pelo destinatário ao receber comando) */
+function stopLocalCamera() {
+    try {
+        if (localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+            localStream = null;
+        }
+        if (localVideoElement) {
+            localVideoElement.srcObject = null;
+            localVideoElement.style.display = 'none';
+        }
+        videoVisible = false;
+        btnToggleVideo.textContent = '👁️ Mostrar Meu Vídeo';
+        statusEl.innerText = 'Câmera encerrada pelo remetente.';
+    } catch (e) {
+        console.error("Erro ao encerrar câmera local:", e);
+    }
+}
+
 /* Abrir mídia do remetente (com ou sem câmera, conforme escolha) */
 async function startSenderMedia() {
     // Se já temos um stream adequado ao estado atual, reutiliza
@@ -550,6 +569,9 @@ peer.on("open", async id => {
             dataConnection.on('data', data => {
                 if (data.type === 'chat') {
                     receiveMessage(data.message);
+                } else if (data.type === 'stop_camera') {
+                    // Remetente solicitou que o destinatário encerre a câmera
+                    stopLocalCamera();
                 }
             });
         } catch (error) {
@@ -630,6 +652,16 @@ btnCopy.onclick = () => {
 /* Excluir link (tornar inválido até gerar outro) */
 btnDeleteLink.onclick = () => {
     if (!generatedLink) return;
+
+    // Avisa o destinatário para encerrar a câmera, se houver conexão de dados
+    try {
+        if (dataConnection && dataConnection.open) {
+            dataConnection.send({ type: 'stop_camera' });
+        }
+    } catch (e) {
+        console.error("Erro ao enviar comando de stop_camera:", e);
+    }
+
     // Remove dados persistidos
     localStorage.removeItem("livecam_link");
     localStorage.removeItem("livecam_peerId");
@@ -714,6 +746,15 @@ btnRecord.onclick = () => {
         isRecording = false;
         btnRecord.textContent = '⏺️ Gravar Vídeo';
         btnRecord.style.background = '#0b5cff';
+
+        // Ao encerrar a gravação, solicitar que o destinatário encerre a câmera
+        try {
+            if (dataConnection && dataConnection.open) {
+                dataConnection.send({ type: 'stop_camera' });
+            }
+        } catch (e) {
+            console.error("Erro ao enviar comando de stop_camera ao parar gravação:", e);
+        }
     }
 };
 
