@@ -372,12 +372,10 @@ export class CameraManager {
                 
                 const senders = currentCall.peerConnection.getSenders();
                 senders.forEach(sender => {
-                    if (sender.track) {
-                        if (sender.track.kind === "video") {
-                            sender.replaceTrack(videoTrack);
-                        } else if (sender.track.kind === "audio") {
-                            sender.replaceTrack(audioTrack);
-                        }
+                    if (sender.track && sender.track.kind === 'audio') {
+                        if (audioTrack) sender.replaceTrack(audioTrack);
+                    } else {
+                        if (videoTrack) sender.replaceTrack(videoTrack);
                     }
                 });
             }

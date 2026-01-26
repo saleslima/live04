@@ -101,6 +101,15 @@ video {
     #videos.dual-video {
         height: 400px;
     }
+
+    video {
+        width: 100%;
+        height: auto;
+    }
+
+    .video-wrapper {
+        width: 100%;
+    }
 }
 .status {
     font-size: 13px;

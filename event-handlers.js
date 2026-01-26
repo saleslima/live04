@@ -186,12 +186,11 @@ export class EventHandlers {
                 
                 const senders = this.peerConnection.currentCall.peerConnection.getSenders();
                 for (const sender of senders) {
-                    if (sender.track) {
-                        if (sender.track.kind === "video" && videoTrack) {
-                            await sender.replaceTrack(videoTrack);
-                        } else if (sender.track.kind === "audio" && audioTrack) {
-                            await sender.replaceTrack(audioTrack);
-                        }
+                    if (sender.track && sender.track.kind === 'audio') {
+                        if (audioTrack) await sender.replaceTrack(audioTrack);
+                    } else {
+                        // Se for track de vídeo ou nula (assumimos ser o sender de vídeo), substitui
+                        if (videoTrack) await sender.replaceTrack(videoTrack);
                     }
                 }
                 
