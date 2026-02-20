@@ -11,6 +11,19 @@ export class EventHandlers {
     }
 
     setupEventListeners() {
+        // Toggle controls visibility
+        const btnToggleControls = document.getElementById("btnToggleControls");
+        const controlButtons = document.getElementById("controlButtons");
+        btnToggleControls.onclick = () => {
+            if (controlButtons.style.display === 'none') {
+                controlButtons.style.display = 'flex';
+                btnToggleControls.textContent = '➖ Ocultar Botões';
+            } else {
+                controlButtons.style.display = 'none';
+                btnToggleControls.textContent = '➕ Mostrar Botões';
+            }
+        };
+        
         // Link management buttons
         this.ui.btnLink.onclick = () => this.handleGenerateLink();
         this.ui.btnCopy.onclick = () => this.handleCopyLink();
@@ -22,7 +35,10 @@ export class EventHandlers {
         
         // Video controls
         this.ui.btnRecord.onclick = () => this.handleRecord();
-        this.ui.btnMyVideo.onclick = () => this.handleMyVideo();
+        this.ui.btnBlur.onclick = () => this.handleBlur();
+        
+        const btnToggleSenderVideo = document.getElementById("btnToggleSenderVideo");
+        btnToggleSenderVideo.onclick = () => this.handleToggleSenderVideo();
         
         const btnSwitchCamera = document.getElementById("btnSwitchCamera");
         btnSwitchCamera.onclick = () => this.handleSwitchCamera();
@@ -30,17 +46,9 @@ export class EventHandlers {
         const btnReload = document.getElementById("btnReload");
         btnReload.onclick = () => location.reload();
         
-        // Delegate event for sender camera switch button
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'btnSwitchSenderCamera') {
-                this.handleSwitchSenderCamera();
-            }
-        });
-        
         // Chat controls
         const btnSend = document.getElementById("btnSend");
         const messageInput = document.getElementById("messageInput");
-        const btnToggleChat = document.getElementById("btnToggleChat");
         const btnImage = document.getElementById("btnImage");
         const imageInput = document.getElementById("imageInput");
         
@@ -51,8 +59,6 @@ export class EventHandlers {
                 this.chat.sendMessage(messageInput.value);
             }
         });
-        
-        btnToggleChat.onclick = () => this.chat.toggleChat();
         
         btnImage.onclick = () => imageInput.click();
         
@@ -68,6 +74,20 @@ export class EventHandlers {
             }
             imageInput.value = '';
         });
+        
+        // Chat toggle
+        const btnToggleChat = document.getElementById("btnToggleChat");
+        const chat = document.getElementById("chat");
+        
+        btnToggleChat.onclick = () => {
+            if (chat.style.display === 'none') {
+                chat.style.display = 'flex';
+                btnToggleChat.textContent = '➖ Ocultar Chat';
+            } else {
+                chat.style.display = 'none';
+                btnToggleChat.textContent = '➕ Mostrar Chat';
+            }
+        };
     }
 
     handleGenerateLink() {
@@ -114,69 +134,11 @@ export class EventHandlers {
         }
     }
 
-    async handleMyVideo() {
-        const params = new URLSearchParams(location.search);
-        const room = params.get("r");
-        
-        try {
-            if (room) {
-                // Recipient mode - toggle their own video
-                const result = await this.camera.toggleRecipientVideo(this.peerConnection.currentCall);
-                this.peerConnection.sendData({ 
-                    type: 'recipient_video_toggle', 
-                    enabled: result.enabled 
-                });
-                this.ui.updateMyVideoButton(result.enabled);
-            } else {
-                // Sender mode - request permission first
-                const hasVideo = this.camera.senderStream && this.camera.senderStream.getVideoTracks().length > 0;
-                
-                if (!hasVideo) {
-                    // Requesting to enable video - ask for permission
-                    this.ui.setStatus("Solicitando permissão...");
-                    this.peerConnection.sendData({ type: 'video_permission_request' });
-                    
-                    // Set up listener for permission response
-                    const originalOnData = this.peerConnection.onDataCallback;
-                    this.peerConnection.onData((data) => {
-                        if (data.type === 'video_permission_granted') {
-                            this.enableSenderVideo();
-                        } else if (data.type === 'video_permission_denied') {
-                            this.ui.setStatus("Permissão negada pelo visitante");
-                            setTimeout(() => this.ui.setStatus("Link ativo. Aguardando visitante..."), 2000);
-                        }
-                        if (originalOnData) originalOnData(data);
-                    });
-                } else {
-                    // Disabling video
-                    const result = await this.camera.toggleSenderVideo(this.peerConnection.currentCall);
-                    this.peerConnection.sendData({ type: 'sender_video_stopped' });
-                    this.ui.updateMyVideoButton(result.enabled);
-                }
-            }
-        } catch (err) {
-            console.error("Erro ao alternar vídeo:", err);
-            this.ui.setStatus("Erro ao alternar vídeo", "#ef4444");
-        }
-    }
-
-    async enableSenderVideo() {
-        try {
-            this.ui.setStatus("Ativando câmera...");
-            const result = await this.camera.toggleSenderVideo(this.peerConnection.currentCall);
-            this.ui.updateMyVideoButton(result.enabled);
-            this.ui.setStatus("Câmera ativada - Compartilhando vídeo");
-        } catch (err) {
-            console.error("Erro ao ativar vídeo:", err);
-            this.ui.setStatus("Erro ao ativar vídeo", "#ef4444");
-        }
+    handleBlur() {
+        this.ui.toggleBlur(this.camera.remoteVideoElement);
     }
 
     async handleSwitchCamera() {
-        const params = new URLSearchParams(location.search);
-        const room = params.get("r");
-        if (!room) return;
-        
         try {
             const newStream = await this.camera.switchCamera();
             
@@ -187,10 +149,10 @@ export class EventHandlers {
                 const senders = this.peerConnection.currentCall.peerConnection.getSenders();
                 for (const sender of senders) {
                     if (sender.track && sender.track.kind === 'audio') {
-                        if (audioTrack) await sender.replaceTrack(audioTrack);
+                        if (audioTrack) await sender.replaceTrack(audioTrack).catch(e => console.error("Erro replace audio:", e));
                     } else {
                         // Se for track de vídeo ou nula (assumimos ser o sender de vídeo), substitui
-                        if (videoTrack) await sender.replaceTrack(videoTrack);
+                        if (videoTrack) await sender.replaceTrack(videoTrack).catch(e => console.error("Erro replace video:", e));
                     }
                 }
                 
@@ -202,15 +164,16 @@ export class EventHandlers {
         }
     }
 
-    async handleSwitchSenderCamera() {
-        const params = new URLSearchParams(location.search);
-        const room = params.get("r");
-        if (room) return;
-        
-        try {
-            await this.camera.switchSenderCamera(this.peerConnection.currentCall);
-        } catch (err) {
-            this.ui.setStatus("Erro ao trocar câmera", "#ef4444");
+    handleToggleSenderVideo() {
+        this.ui.toggleSenderVideo();
+        const btnToggleSenderVideo = document.getElementById("btnToggleSenderVideo");
+        if (this.ui.senderVideoVisible) {
+            btnToggleSenderVideo.textContent = '👁️ Inibir Meu Vídeo';
+            this.peerConnection.sendData({ type: 'sender_video_visible', visible: true });
+        } else {
+            btnToggleSenderVideo.textContent = '👁️ Mostrar Meu Vídeo';
+            this.peerConnection.sendData({ type: 'sender_video_visible', visible: false });
         }
     }
+
 }
